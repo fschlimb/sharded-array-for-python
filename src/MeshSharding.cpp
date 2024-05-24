@@ -6,8 +6,12 @@
 #include <sharpy/MeshSharding.hpp>
 #include <sharpy/Transceiver.hpp>
 
+#include <mlir/Dialect/Mesh/IR/MeshOps.h>
+#include <mlir/IR/SymbolTable.h>
+
 namespace SHARPY {
 
+// Runable to generate mesh in MLIR
 class DeferredMesh : public Runable {
 private:
   std::string _name;
@@ -20,6 +24,9 @@ public:
   DeferredMesh(NameType &&name, ShapeType &&shape)
       : _name(std::forward<NameType>(name)),
         _shape(std::forward<ShapeType>(shape)) {
+    if (_name.empty()) {
+      throw std::runtime_error("Mesh name cannot be empty");
+    }
     if (_shape.empty()) {
       _shape.push_back(getTransceiver()->nranks());
     }
@@ -28,12 +35,16 @@ public:
     }
   }
 
-  bool generate_mlir(::mlir::OpBuilder &b, const ::mlir::Location &l,
+  bool generate_mlir(::mlir::OpBuilder &b, const ::mlir::Location &loc,
                      jit::DepManager &d) override {
-    std::cerr << "Generating MLIR for mesh " << _name << " with shape [";
-    for (auto i : _shape)
-      std::cout << i << ", ";
-    std::cerr << "]\n";
+    auto n = b.getStringAttr(_name);
+    auto s = b.getDenseI64ArrayAttr(_shape);
+    mlir::OpBuilder::InsertionGuard guard(b);
+    auto m =
+        ::mlir::SymbolTable::getNearestSymbolTable(b.getBlock()->getParentOp());
+    auto body = ::mlir::cast<::mlir::ModuleOp>(m).getBody();
+    b.setInsertionPoint(body, body->begin());
+    b.create<mlir::mesh::MeshOp>(loc, n, s);
     return false;
   }
 
@@ -43,12 +54,14 @@ public:
   }
 };
 
+// enqueue a runable to generate mesh in MLIR and return name
 std::string Mesh::init_mesh(std::string name, std::vector<int64_t> shape) {
   auto mesh = std::make_unique<DeferredMesh>(name, shape);
   push_runable(std::move(mesh));
   return name;
 }
 
+// Runable to generate meshsharding in MLIR
 class DeferredMeshSharding : public Runable {
 private:
   std::shared_ptr<MeshSharding> _meshSharding;
@@ -82,6 +95,8 @@ public:
 std::shared_ptr<MeshSharding>
 Mesh::init_mesh_sharding(const std::string &mesh,
                          const std::vector<std::vector<int64_t>> &splitAxes) {
+  // enqueue a meshsharding operation
+  // returns the name as the unique identifier
   static std::string defaultMesh;
   if (mesh.empty()) {
     if (splitAxes.empty()) {
@@ -99,6 +114,7 @@ Mesh::init_mesh_sharding(const std::string &mesh,
   return meshSharding;
 }
 
+// Runable to generate sharding annotation in MLIR
 class DeferredShard : public Deferred {
 private:
   id_type _a;
@@ -122,6 +138,8 @@ public:
   }
 };
 
+// enqueue a Deferred to generate sharding annotation in MLIR and
+// return new array
 FutureArray *Mesh::shard(const FutureArray &a,
                          const std::shared_ptr<MeshSharding> &meshSharding) {
   return new FutureArray(defer<DeferredShard>(a.get(), meshSharding));

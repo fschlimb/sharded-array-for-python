@@ -204,6 +204,8 @@ DepManager::DepManager(jit::JIT &jit) : _jit(jit), _builder(&jit.context()) {
   // create dummy type, we'll replace it with the actual type later
   auto dummyFuncType = _builder.getFunctionType({}, {});
   _func = _builder.create<::mlir::func::FuncOp>(loc, _fname, dummyFuncType);
+  // add the function to the module
+  _module.push_back(_func);
   // create function entry block
   auto &entryBlock = *_func.addEntryBlock();
   // Set the insertion point in the _builder to the beginning of the function
@@ -221,10 +223,9 @@ void DepManager::finalizeAndRun() {
                  _builder.getUnitAttr());
   if (_jit.verbose())
     _func.getFunctionType().dump();
-  // add the function to the module
-  _module.push_back(_func);
 
-  if (osz > 0 || !input.empty()) {
+  if (_func.front().getOperations().size() >
+      1) { // osz > 0 || !input.empty()) {
     // compile and run the module
     auto output = _jit.run(_module, _fname, input, osz);
     // we assume we only store memrefdescriptors, e.g. arrays of inptr_t
@@ -808,6 +809,7 @@ JIT::JIT(const std::string &libidtr)
   _context.getOrLoadDialect<::imex::region::RegionDialect>();
   _context.getOrLoadDialect<::mlir::arith::ArithDialect>();
   _context.getOrLoadDialect<::mlir::func::FuncDialect>();
+  _context.getOrLoadDialect<::mlir::mesh::MeshDialect>();
   _context.getOrLoadDialect<::mlir::linalg::LinalgDialect>();
   _context.getOrLoadDialect<::imex::region::RegionDialect>();
   // create the pass pipeline from string

@@ -131,27 +131,27 @@ for func in api.api_categories["Creator"]:
     FUNC = func.upper()
     if func == "full":
         exec(
-            f"{func} = lambda shape, val, dtype=float64, device='', sharding=None: ndarray(_csp.Creator.full(shape, val, dtype, _validate_device(device), *team, _selectSharding(sharding)))"
+            f"{func} = lambda shape, val, dtype=float64, device='', sharding=None: ndarray(_csp.Creator.full(shape, val, dtype, _validate_device(device), 0))"
         )
     elif func == "empty":
         exec(
-            f"{func} = lambda shape, dtype=float64, device='', sharding=None: ndarray(_csp.Creator.full(shape, None, dtype, _validate_device(device), *team, _selectSharding(sharding)))"
+            f"{func} = lambda shape, dtype=float64, device='', sharding=None: ndarray(_csp.Creator.full(shape, None, dtype, _validate_device(device), 0))"
         )
     elif func == "ones":
         exec(
-            f"{func} = lambda shape, dtype=float64, device='', sharding=None: ndarray(_csp.Creator.full(shape, 1, dtype, _validate_device(device), *team, _selectSharding(sharding)))"
+            f"{func} = lambda shape, dtype=float64, device='', sharding=None: ndarray(_csp.Creator.full(shape, 1, dtype, _validate_device(device), 0))"
         )
     elif func == "zeros":
         exec(
-            f"{func} = lambda shape, dtype=float64, device='', sharding=None: ndarray(_csp.Creator.full(shape, 0, dtype, _validate_device(device), *team, _selectSharding(sharding)))"
+            f"{func} = lambda shape, dtype=float64, device='', sharding=None: ndarray(_csp.Creator.full(shape, 0, dtype, _validate_device(device), 0))"
         )
     elif func == "arange":
         exec(
-            f"{func} = lambda start, end, step, dtype=int64, device='', sharding=None: ndarray(_csp.Creator.arange(start, end, step, dtype, _validate_device(device), *team, _selectSharding(sharding)))"
+            f"{func} = lambda start, end, step, dtype=int64, device='', sharding=None: ndarray(_csp.Creator.arange(start, end, step, dtype, _validate_device(device), 0))"
         )
     elif func == "linspace":
         exec(
-            f"{func} = lambda start, end, step, endpoint, dtype=float64, device='', sharding=None: ndarray(_csp.Creator.linspace(start, end, step, endpoint, dtype, _validate_device(device), *team, _selectSharding(sharding)))"
+            f"{func} = lambda start, end, step, endpoint, dtype=float64, device='', sharding=None: ndarray(_csp.Creator.linspace(start, end, step, endpoint, dtype, _validate_device(device), 0))"
         )
 
 

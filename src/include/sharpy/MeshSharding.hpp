@@ -7,6 +7,9 @@
 
 namespace SHARPY {
 
+/// @brief MeshSharding class
+/// Defines how a potential array is mapped onto the given mesh
+/// See MLIR's Mesh dialect for sharding semantics
 class MeshSharding {
   std::string _mesh;
   std::vector<std::vector<int64_t>> _splitAxes;
@@ -25,10 +28,29 @@ public:
 };
 
 struct Mesh {
+  /// @brief Create a (device) mesh with the given name and shape
+  /// @param name unique identifier for the mesh
+  /// @param shape shape of the mesh
+  /// @return unique name of the mesh
+  /// @note The shape must be a product of the number of ranks
+  /// @note If shape is empty, assumes default shape [nranks]
   static std::string init_mesh(std::string name, std::vector<int64_t> shape);
+
+  /// @brief Create a mesh sharding for given mesh and split axes
+  /// @param mesh name of mesh
+  /// @param splitAxes Vector of Vector of split dimensions, one vector for each
+  /// dimension of the mesh
+  /// @return MeshSharding object
+  /// @note if mesh and splitAxis are empty returns nullptr, which represents no
+  /// sharding
+  /// @note if mesh is empty and splitAxis is non-empty uses the default mesh
+  /// @note if mesh is non-empty and splitAxis is empty, returns a sharding
+  /// along the first dimension of the mesh and target
   static std::shared_ptr<MeshSharding>
   init_mesh_sharding(const std::string &mesh,
                      const std::vector<std::vector<int64_t>> &splitAxes);
+
+  /// @brief Shard the given FutureArray based on the given mesh sharding
   static FutureArray *shard(const FutureArray &a,
                             const std::shared_ptr<MeshSharding> &meshSharding);
 };
