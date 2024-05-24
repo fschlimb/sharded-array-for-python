@@ -36,6 +36,7 @@ using namespace pybind11::literals; // to bring _a
 #include "sharpy/MPIMediator.hpp"
 #include "sharpy/MPITransceiver.hpp"
 #include "sharpy/ManipOp.hpp"
+#include "sharpy/MeshSharding.hpp"
 #include "sharpy/Random.hpp"
 #include "sharpy/ReduceOp.hpp"
 #include "sharpy/Service.hpp"
@@ -52,6 +53,7 @@ namespace SHARPY {
 // The following classes are wrappers bridging pybind11 defs to TypeDispatch
 
 rank_type myrank() { return getTransceiver()->rank(); }
+rank_type nranks() { return getTransceiver()->nranks(); }
 
 std::thread *pprocessor = nullptr;
 
@@ -174,6 +176,7 @@ PYBIND11_MODULE(_sharpy, m) {
       .def("init", &init)
       .def("sync", &sync_promises)
       .def("myrank", &myrank)
+      .def("nranks", &nranks)
       .def("_get_slice", &GetItem::get_slice)
       .def("_get_locals",
            [](const FutureArray &f, py::handle h) {
@@ -185,7 +188,10 @@ PYBIND11_MODULE(_sharpy, m) {
              PY_SYNC_RETURN(GetItem::gather(f, root));
            })
       .def("to_numpy",
-           [](const FutureArray &f) { PY_SYNC_RETURN(IO::to_numpy(f)); });
+           [](const FutureArray &f) { PY_SYNC_RETURN(IO::to_numpy(f)); })
+      .def("init_mesh", &Mesh::init_mesh)
+      .def("init_mesh_sharding", &Mesh::init_mesh_sharding)
+      .def("shard", &Mesh::shard);
 
   py::class_<Creator>(m, "Creator")
       .def("full", &Creator::full)
@@ -234,7 +240,7 @@ PYBIND11_MODULE(_sharpy, m) {
       .def("seed", &Random::seed)
       .def("uniform", &Random::rand);
 
-  // py::class_<dpdlpack>(m, "dpdlpack")
-  //     .def("__dlpack__", &dpdlpack.__dlpack__);
+  py::class_<MeshSharding, std::shared_ptr<MeshSharding>>(m, "MeshSharding");
 }
+
 } // namespace SHARPY

@@ -13,8 +13,11 @@ https://data-apis.org/array-api/latest
 # At this point there are no checks of input arguments whatsoever, arguments
 # are simply forwarded as-is.
 
+import functools
+import operator
 import os
 import re
+from collections import defaultdict
 from importlib import import_module
 from os import getenv
 from typing import Any
@@ -35,7 +38,7 @@ from ._sharpy import UINT32 as uint32
 from ._sharpy import UINT64 as uint64
 from ._sharpy import fini
 from ._sharpy import init as _init
-from ._sharpy import sync
+from ._sharpy import myrank, nranks, sync
 from .ndarray import ndarray
 
 _sharpy_cw = bool(int(getenv("SHARPY_CW", False)))
@@ -51,6 +54,41 @@ def init(cw=None):
     _init(cw, libidtr)
 
 
+_lastMeshId = -1
+_meshes = {}
+
+
+def init_device_mesh(mesh_shape: tuple = (), team=None):
+    """
+    Create a DeviceMesh with an n-dimensional array layout, where `n` is the
+    length of `mesh_shape`. The size of the mesh must equal the number of
+    members in the team.
+    """
+    assert team is None, "Team support is not implemented yet"
+    assert (
+        mesh_shape == () or len(mesh_shape) == 1
+    ), "Only 1D meshes are supported"
+    if mesh_shape in _meshes:
+        return _meshes[mesh_shape]
+    global _lastMeshId
+    _lastMeshId += 1
+    name = f"mesh{_lastMeshId}"
+    mesh = _csp.init_mesh(name, mesh_shape)
+    _meshes[mesh_shape] = mesh
+    return mesh
+
+
+def init_sharding(mesh="", map="rowwise"):
+    """
+    Create a sharding map for the given mesh and map.
+    See MLIR's mesh-dialect for details about the representation of sharding
+    maps.
+    """
+    assert map == "rowwise", f"Unknown sharding map: {map}"
+    splitAxes = ((0,),) if mesh is not None else ()
+    return _csp.init_mesh_sharding(mesh, splitAxes)
+
+
 def to_numpy(a):
     return _csp.to_numpy(a._t)
 
@@ -61,6 +99,7 @@ for op in api.api_categories["EWBinOp"]:
         exec(
             f"{op} = lambda this, other: ndarray(_csp.EWBinOp.op(_csp.{OP}, this._t if isinstance(this, ndarray) else this, other._t if isinstance(other, ndarray) else other))"
         )
+
 
 for op in api.api_categories["EWUnyOp"]:
     if not op.startswith("__"):
@@ -80,31 +119,39 @@ def _validate_device(device):
         raise ValueError(f"Invalid device string: {device}")
 
 
+def _selectSharding(sharding):
+    if sharding is True:
+        return init_sharding()
+    if not sharding:
+        return init_sharding(None)
+    return sharding
+
+
 for func in api.api_categories["Creator"]:
     FUNC = func.upper()
     if func == "full":
         exec(
-            f"{func} = lambda shape, val, dtype=float64, device='', team=1: ndarray(_csp.Creator.full(shape, val, dtype, _validate_device(device), team))"
+            f"{func} = lambda shape, val, dtype=float64, device='', sharding=None: ndarray(_csp.Creator.full(shape, val, dtype, _validate_device(device), *team, _selectSharding(sharding)))"
         )
     elif func == "empty":
         exec(
-            f"{func} = lambda shape, dtype=float64, device='', team=1: ndarray(_csp.Creator.full(shape, None, dtype, _validate_device(device), team))"
+            f"{func} = lambda shape, dtype=float64, device='', sharding=None: ndarray(_csp.Creator.full(shape, None, dtype, _validate_device(device), *team, _selectSharding(sharding)))"
         )
     elif func == "ones":
         exec(
-            f"{func} = lambda shape, dtype=float64, device='', team=1: ndarray(_csp.Creator.full(shape, 1, dtype, _validate_device(device), team))"
+            f"{func} = lambda shape, dtype=float64, device='', sharding=None: ndarray(_csp.Creator.full(shape, 1, dtype, _validate_device(device), *team, _selectSharding(sharding)))"
         )
     elif func == "zeros":
         exec(
-            f"{func} = lambda shape, dtype=float64, device='', team=1: ndarray(_csp.Creator.full(shape, 0, dtype, _validate_device(device), team))"
+            f"{func} = lambda shape, dtype=float64, device='', sharding=None: ndarray(_csp.Creator.full(shape, 0, dtype, _validate_device(device), *team, _selectSharding(sharding)))"
         )
     elif func == "arange":
         exec(
-            f"{func} = lambda start, end, step, dtype=int64, device='', team=1: ndarray(_csp.Creator.arange(start, end, step, dtype, _validate_device(device), team))"
+            f"{func} = lambda start, end, step, dtype=int64, device='', sharding=None: ndarray(_csp.Creator.arange(start, end, step, dtype, _validate_device(device), *team, _selectSharding(sharding)))"
         )
     elif func == "linspace":
         exec(
-            f"{func} = lambda start, end, step, endpoint, dtype=float64, device='', team=1: ndarray(_csp.Creator.linspace(start, end, step, endpoint, dtype, _validate_device(device), team))"
+            f"{func} = lambda start, end, step, endpoint, dtype=float64, device='', sharding=None: ndarray(_csp.Creator.linspace(start, end, step, endpoint, dtype, _validate_device(device), *team, _selectSharding(sharding)))"
         )
 
 

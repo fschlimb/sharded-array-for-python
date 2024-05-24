@@ -127,6 +127,7 @@ set(SHARPYSrcs
     ${PROJECT_SOURCE_DIR}/src/Deferred.cpp
     ${PROJECT_SOURCE_DIR}/src/Service.cpp
     ${PROJECT_SOURCE_DIR}/src/Mediator.cpp
+    ${PROJECT_SOURCE_DIR}/src/MeshSharding.cpp
     ${PROJECT_SOURCE_DIR}/src/MPIMediator.cpp
     ${PROJECT_SOURCE_DIR}/src/CollComm.cpp
     ${PROJECT_SOURCE_DIR}/src/NDArray.cpp
