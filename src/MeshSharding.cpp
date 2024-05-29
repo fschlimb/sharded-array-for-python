@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
+#include "sharpy/jit/mlir.hpp"
 #include <iostream>
 #include <sharpy/Deferred.hpp>
 #include <sharpy/Factory.hpp>
@@ -61,40 +62,9 @@ std::string Mesh::init_mesh(std::string name, std::vector<int64_t> shape) {
   return name;
 }
 
-// Runable to generate meshsharding in MLIR
-class DeferredMeshSharding : public Runable {
-private:
-  std::shared_ptr<MeshSharding> _meshSharding;
-
-public:
-  DeferredMeshSharding() = default;
-  // Constructor by perfect forwarding
-  template <typename MeshShardingType>
-  DeferredMeshSharding(MeshShardingType &&meshSharding)
-      : _meshSharding(std::forward<MeshShardingType>(meshSharding)) {}
-
-  bool generate_mlir(::mlir::OpBuilder &b, const ::mlir::Location &l,
-                     jit::DepManager &d) override {
-    std::cerr << "Generating MLIR for meshsharding on mesh "
-              << _meshSharding->mesh() << " with splitAxes[\n";
-    for (auto j : _meshSharding->splitAxes()) {
-      std::cerr << "\t[";
-      for (auto i : j)
-        std::cout << i << ", ";
-      std::cerr << "]\n";
-    }
-    std::cerr << "]\n";
-    return false;
-  }
-  FactoryId factory() const override { return F_MESHSHARDING; }
-  template <typename S> void serialize(S &ser) {
-    throw std::runtime_error("Not implemented");
-  }
-};
-
 std::shared_ptr<MeshSharding>
 Mesh::init_mesh_sharding(const std::string &mesh,
-                         const std::vector<std::vector<int64_t>> &splitAxes) {
+                         const std::vector<std::vector<int16_t>> &splitAxes) {
   // enqueue a meshsharding operation
   // returns the name as the unique identifier
   static std::string defaultMesh;
@@ -103,15 +73,11 @@ Mesh::init_mesh_sharding(const std::string &mesh,
       return {};
     }
     if (defaultMesh.empty()) {
-      defaultMesh = init_mesh("defaultmesh", {});
+      defaultMesh = init_mesh("defaultmesh", {-1});
     }
   }
-  auto meshSharding = std::make_shared<MeshSharding>(
-      mesh.empty() ? defaultMesh : mesh, splitAxes);
-  auto deferredMeshSharding =
-      std::make_unique<DeferredMeshSharding>(meshSharding);
-  push_runable(std::move(deferredMeshSharding));
-  return meshSharding;
+  return std::make_shared<MeshSharding>(mesh.empty() ? defaultMesh : mesh,
+                                        splitAxes);
 }
 
 // Runable to generate sharding annotation in MLIR
@@ -128,8 +94,22 @@ public:
       : _a(a.guid()),
         _meshSharding(std::forward<MeshShardingType>(meshSharding)) {}
 
-  bool generate_mlir(::mlir::OpBuilder &b, const ::mlir::Location &l,
-                     jit::DepManager &d) override {
+  bool generate_mlir(::mlir::OpBuilder &builder, const ::mlir::Location &loc,
+                     jit::DepManager &dm) override {
+    auto av = dm.getDependent(builder, Registry::get(_a));
+    auto aType = av.getType().cast<::imex::ndarray::NDArrayType>();
+    auto mesh = ::mlir::FlatSymbolRefAttr::get(builder.getContext(),
+                                               _meshSharding->mesh());
+    auto sharding = ::mlir::mesh::MeshShardingAttr::get(
+        builder.getContext(), mesh, _meshSharding->splitAxes());
+
+    auto tnsr = builder
+                    .create<::mlir::UnrealizedConversionCastOp>(
+                        loc, aType.getTensorType(), av)
+                    .getResult(0);
+    auto x = builder.create<::mlir::mesh::ShardOp>(loc, tnsr.getType(), tnsr,
+                                                   sharding, true);
+
     return false;
   }
   FactoryId factory() const override { return F_SHARD; }
@@ -146,7 +126,6 @@ FutureArray *Mesh::shard(const FutureArray &a,
 }
 
 FACTORY_INIT(DeferredMesh, F_MESH);
-FACTORY_INIT(DeferredMeshSharding, F_MESHSHARDING);
 FACTORY_INIT(DeferredShard, F_SHARD);
 
 } // namespace SHARPY

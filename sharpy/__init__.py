@@ -85,8 +85,15 @@ def init_sharding(mesh="", map="rowwise"):
     maps.
     """
     assert map == "rowwise", f"Unknown sharding map: {map}"
-    splitAxes = ((0,),) if mesh is not None else ()
+    splitAxes = [[0]] if mesh is not None else []
     return _csp.init_mesh_sharding(mesh, splitAxes)
+
+
+def shard(a, sharding):
+    """
+    Shard the given array according to the given sharding map.
+    """
+    return _csp.shard(a._t, sharding)
 
 
 def to_numpy(a):

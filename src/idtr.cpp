@@ -521,7 +521,7 @@ _idtr_copy_reshape(SHARPY::Transceiver *tc, int64_t iNSzs, void *iGShapeDescr,
   if (!iGShapeDescr || !iLOffsDescr || !iDataDescr || !oGShapeDescr ||
       !oLOffsDescr || !oDataDescr) {
     throw std::invalid_argument(
-        "Fatal error: received nullptr in update_halo.");
+        "Fatal error: received nullptr in copy_reshape.");
   }
 
   auto sharpytype = SHARPY::DTYPE<T>::value;

@@ -337,7 +337,6 @@ enum FactoryId : int {
   F_LINSPACE,
   F_MAP,
   F_MESH,
-  F_MESHSHARDING,
   F_RANDOM,
   F_REDUCEOP,
   F_REPLICATE,

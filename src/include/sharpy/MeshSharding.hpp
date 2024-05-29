@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include "FutureArray.hpp"
+#include <llvm/ADT/SmallVector.h>
 #include <memory>
 #include <string>
 #include <vector>
@@ -12,7 +13,7 @@ namespace SHARPY {
 /// See MLIR's Mesh dialect for sharding semantics
 class MeshSharding {
   std::string _mesh;
-  std::vector<std::vector<int64_t>> _splitAxes;
+  std::vector<::llvm::SmallVector<int16_t>> _splitAxes;
 
 public:
   // Constructor by perfect forwarding
@@ -20,9 +21,19 @@ public:
   MeshSharding(MeshType &&mesh, SplitAxesType &&splitAxes)
       : _mesh(std::forward<MeshType>(mesh)),
         _splitAxes(std::forward<SplitAxesType>(splitAxes)) {}
+  template <typename MeshType>
+  MeshSharding(MeshType &&mesh,
+               const std::vector<std::vector<int16_t>> &splitAxes)
+      : _mesh(std::forward<MeshType>(mesh)), _splitAxes(splitAxes.size()) {
+    auto sa = _splitAxes.begin();
+    for (auto a : splitAxes) {
+      sa->append(a.begin(), a.end());
+      ++sa;
+    }
+  }
   // Accessors
   const std::string &mesh() const { return _mesh; }
-  const std::vector<std::vector<int64_t>> &splitAxes() const {
+  const std::vector<::llvm::SmallVector<int16_t>> &splitAxes() const {
     return _splitAxes;
   }
 };
@@ -48,7 +59,7 @@ struct Mesh {
   /// along the first dimension of the mesh and target
   static std::shared_ptr<MeshSharding>
   init_mesh_sharding(const std::string &mesh,
-                     const std::vector<std::vector<int64_t>> &splitAxes);
+                     const std::vector<std::vector<int16_t>> &splitAxes);
 
   /// @brief Shard the given FutureArray based on the given mesh sharding
   static FutureArray *shard(const FutureArray &a,
